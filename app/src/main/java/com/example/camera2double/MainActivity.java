@@ -14,6 +14,8 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.Surface;
 import android.view.TextureView;
+import android.view.View;
+import android.widget.Button;
 
 import com.huawei.emui.himedia.camera.HwCamera;
 import com.huawei.emui.himedia.camera.HwCameraInitSuccessCallback;
@@ -23,6 +25,8 @@ public class MainActivity extends AppCompatActivity {
     private AutoFitTextureView mTextureView2;
     private CameraInstance mCameraInstance;
     private CameraInstance mCameraInstance2;
+    private Button mButton;
+    private boolean mIsRecordering = false;
     private HwCamera mHwCamera = new HwCamera();
     Surface previewSurface;
     private static final int REQUEST_VIDEO_PERMISSIONS = 1;
@@ -52,18 +56,23 @@ public class MainActivity extends AppCompatActivity {
         }
         mTextureView2 = (AutoFitTextureView) findViewById(R.id.textrue2);
         mTextureView = (AutoFitTextureView) findViewById(R.id.textrue);
-        mCameraInstance = new CameraInstance(this, mTextureView, "3", mHwCamera);
-        mCameraInstance2 = new CameraInstance(this, mTextureView2 , "4",mHwCamera);
-        mHwCamera.setInitSuccessCallback(new HwCameraInitSuccessCallback() {
-
+        mCameraInstance = new CameraInstance(this, mTextureView, "0", mHwCamera);
+        mCameraInstance2 = new CameraInstance(this, mTextureView2 , "2",mHwCamera);
+        mButton = (Button) findViewById(R.id.button);
+        mButton.setOnClickListener(new View.OnClickListener() {
             @Override
-            public void onInitSuccess() {
-                Log.i("success","success");
-                flag = true;
+            public void onClick(View v) {
+                if (!mIsRecordering) {
+                    mCameraInstance.startRecordingVideo();
+                    mCameraInstance2.startRecordingVideo();
+                    mIsRecordering = true;
+                } else {
+                    mCameraInstance.stopRecordingVideo();
+                    mCameraInstance2.stopRecordingVideo();
+                    mIsRecordering = false;
+                }
             }
-            });
-        mHwCamera.initialize(this);
-
+        });
     }
 
     /**
@@ -99,12 +108,12 @@ public class MainActivity extends AppCompatActivity {
         mCameraInstance.startBackgroundThread();
         mCameraInstance2.startBackgroundThread();
         if(mTextureView2.isAvailable()) {
-            mCameraInstance2.openHWCamera(mTextureView2.getWidth(),mTextureView2.getHeight());
+            mCameraInstance2.openCamera(mTextureView2.getWidth(),mTextureView2.getHeight());
         } else {
             mTextureView2.setSurfaceTextureListener(mSurfaceTextureListener2);
         }
         if(mTextureView.isAvailable()) {
-            mCameraInstance.openHWCamera(mTextureView.getWidth(), mTextureView.getHeight());
+            mCameraInstance.openCamera(mTextureView.getWidth(), mTextureView.getHeight());
         } else {
             mTextureView.setSurfaceTextureListener(mSurfaceTextureListener);
         }
@@ -123,7 +132,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int i, int i1) {
-            mCameraInstance.openHWCamera(i, i1);
+            mCameraInstance.openCamera(i, i1);
         }
 
         @Override
@@ -147,7 +156,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int i, int i1) {
-            mCameraInstance2.openHWCamera(i, i1);
+            mCameraInstance2.openCamera(i, i1);
         }
 
         @Override

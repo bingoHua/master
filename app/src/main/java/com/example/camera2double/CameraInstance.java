@@ -43,14 +43,13 @@ import java.util.List;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
+import static android.content.ContentValues.TAG;
+
 public class CameraInstance {
     private CameraDevice mCameraDevice;
-    private HwCameraDevice mhwCameraDevice;
-    private HwCameraDevice mHWCameraDevice;
     private CameraDevice.StateCallback mDeviceStateCallback;
     private AutoFitTextureView mTextureView;
     private CameraCaptureSession mCameraCaptureSession;
-    private HwCameraCaptureSession mHwCameraCaptureSession;
     private CameraManager mManager;
     private Activity mActivity;
     private HandlerThread mBackgroundThread;
@@ -124,51 +123,6 @@ public class CameraInstance {
         }
     }
 
-    private HwCameraDevice.StateCallback mStateCallback = new HwCameraDevice.StateCallback() {
-
-        @Override
-        public void onOpened(HwCameraDevice hwCameraDevice) {
-            mhwCameraDevice = hwCameraDevice;
-            startPreview();
-            mCameraOpenCloseLock.release();
-            if (null != mTextureView) {
-                configureTransform(mTextureView.getWidth(), mTextureView.getHeight());
-            }
-        }
-
-        @Override
-        public void onError(HwCameraDevice hwCameraDevice, int i) {
-
-        }
-
-        @Override
-        public void onClosed(HwCameraDevice camera) {
-            super.onClosed(camera);
-        }
-
-        @Override
-        public void onDisconnected(HwCameraDevice hwCameraDevice) {
-
-        }
-    };
-
-    private void createHWCaptureSession(HwCameraDevice cameraDevice) {
-        try {
-            cameraDevice.createCaptureSession(Collections.singletonList(mSurface), new HwCameraCaptureSession.StateCallback() {
-                @Override
-                public void onConfigured(HwCameraCaptureSession hwCameraCaptureSession) {
-                    mHwCameraCaptureSession = hwCameraCaptureSession;
-                    hwupdatePreview();
-                }
-
-                @Override
-                public void onConfigureFailed(HwCameraCaptureSession hwCameraCaptureSession) {
-
-                }
-            }, mBackgroundHandler);
-        }catch (CameraAccessException e) {}
-    }
-
     private void createCaptureSession(CameraDevice cameraDevice) {
             try {
                 cameraDevice.createCaptureSession(Collections.singletonList(mSurface), new CameraCaptureSession.StateCallback() {
@@ -200,26 +154,6 @@ public class CameraInstance {
             mCameraCaptureSession.setRepeatingRequest(mPreviewBuilder.build(), new CameraCaptureSession.CaptureCallback(){
                 @Override
                 public void onCaptureStarted(@NonNull CameraCaptureSession session,
-                                             @NonNull CaptureRequest request, long timestamp, long frameNumber) {
-                    Log.println(0, this.toString(), "test");
-                }
-            } , mBackgroundHandler);
-        } catch (CameraAccessException e) {
-            e.printStackTrace();
-        }
-    }
-
-    void hwupdatePreview() {
-        if (null == mHWCameraDevice) {
-            return;
-        }
-        try {
-            setUpCaptureRequestBuilder(mPreviewBuilder);
-            HandlerThread thread = new HandlerThread("CameraPreview" + mCameraId);
-            thread.start();
-            mHwCameraCaptureSession.setRepeatingRequest(mPreviewBuilder.build(), new HwCameraCaptureSession.CaptureCallback(){
-                @Override
-                public void onCaptureStarted(@NonNull HwCameraCaptureSession session,
                                              @NonNull CaptureRequest request, long timestamp, long frameNumber) {
                     Log.println(0, this.toString(), "test");
                 }
@@ -270,82 +204,16 @@ public class CameraInstance {
 
     HwCamera hwCamera;
     CameraCharacteristics characteristics;
-    HwCameraManager manager;
     private String[] mCameraIdList;
-
-    public void openHWCamera(int width, int height) {
-        mSurface = new Surface(mTextureView.getSurfaceTexture());
-
-        hwCamera.setHwCameraEngineDieCallBack(new EngineDieCallback());
-        hwCamera.getHwCameraManager();
-        manager =  hwCamera.getHwCameraManager();
-        try {
-            if (!mCameraOpenCloseLock.tryAcquire(2500, TimeUnit.MILLISECONDS)) {
-                throw new RuntimeException("Time out waiting to lock camera opening.");
-            }
-            String cameraId;
-            int cameraIndex = -1;
-            mCameraIdList = manager.getCameraIdList();
-
-            //get backCameraId
-    /*        for (int i = 0; i < mCameraIdList.length; i++) {
-                characteristics = manager.getCameraCharacteristics(mCameraIdList[i]);
-                if (mCurrentCameraFacing == characteristics.get(CameraCharacteristics.LENS_FACING)) {
-                    Byte ret = manager.isFeatureSupported(i, HwCameraMetadata.CharacteristicKey.HUAWEI_IS_60FPS_SUPPORTED);
-                    if (ret != 1) {
-                        showToast("60fps not supported");
-                        //getActivity().onBackPressed();
-                        return;
-                    }
-                    cameraIndex = i;
-                    break;
-                }
-            }*/
-            cameraId = mCameraId;
-            cameraIndex = Integer.parseInt(cameraId);
-            characteristics = manager.getCameraCharacteristics(mCameraIdList[cameraIndex]);
-            assert (characteristics != null && cameraIndex != -1);
-            // Choose the sizes for camera preview and video recording
-
-            StreamConfigurationMap map = characteristics
-                    .get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-
-            characteristics.get(CameraCharacteristics.CONTROL_AVAILABLE_VIDEO_STABILIZATION_MODES);
-            mSensorOrientation = characteristics.get(CameraCharacteristics.SENSOR_ORIENTATION);
-            if (map == null) {
-                throw new RuntimeException("Cannot get available preview/video sizes");
-            }
-
-            //mVideoSize = chooseHighSpeedVideoSize(map.getHighSpeedVideoSizes());
-            mVideoSize = new Size(1920, 1080);
-            mPreviewSize = mVideoSize;
-
-            int orientation = mActivity.getResources().getConfiguration().orientation;
-            if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                mTextureView.setAspectRatio(mPreviewSize.getWidth(), mPreviewSize.getHeight());
-            } else {
-                mTextureView.setAspectRatio(mPreviewSize.getHeight(), mPreviewSize.getWidth());
-            }
-            manager.openCamera(cameraId, mHwStateCallback, null, HwCameraManager.DEFAULT_MODE);
-        } catch (CameraAccessException e) {
-            Toast.makeText(mActivity,"Cannot access the camera.", Toast.LENGTH_SHORT).show();
-            mActivity.finish();
-        } catch (NullPointerException e) {
-            // Currently an NPE is thrown when the Camera2API is used but not supported on the
-            // device this code runs.
-        } catch (InterruptedException e) {
-            throw new RuntimeException("Interrupted while trying to lock camera opening.");
-        }
-    }
 
     /**
      * {@link CameraDevice.StateCallback} is called when {@link CameraDevice} changes its status.
      */
-    private HwCameraDevice.StateCallback mHwStateCallback = new HwCameraDevice.StateCallback() {
+    private CameraDevice.StateCallback mStateCallback = new CameraDevice.StateCallback() {
 
         @Override
-        public void onOpened(HwCameraDevice hwCameraDevice) {
-            mHWCameraDevice = hwCameraDevice;
+        public void onOpened(CameraDevice CameraDevice) {
+            mCameraDevice = CameraDevice;
 
             startPreview();
 
@@ -356,18 +224,18 @@ public class CameraInstance {
         }
 
         @Override
-        public void onError(HwCameraDevice hwCameraDevice, int i) {
+        public void onError(CameraDevice CameraDevice, int i) {
             Log.e("error", "error");
 
         }
 
         @Override
-        public void onClosed(HwCameraDevice camera) {
+        public void onClosed(CameraDevice camera) {
             super.onClosed(camera);
         }
 
         @Override
-        public void onDisconnected(HwCameraDevice hwCameraDevice) {
+        public void onDisconnected(CameraDevice hwCameraDevice) {
             Log.e("error", "error");
         }
     };
@@ -405,19 +273,16 @@ public class CameraInstance {
     }
 
     public void startPreview() {
-        if (null == mHWCameraDevice || null == mPreviewSize) {
+        if (null == mCameraDevice || null == mPreviewSize) {
             return;
         }
         try {
             closePreviewSession();
-            mPreviewBuilder =mHWCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
+            mPreviewBuilder =mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
             mPreviewBuilder.addTarget(mSurface);
-            //createCaptureSession(mCameraDevice);
-
-            createHWCaptureSession(mHWCameraDevice);
+            createCaptureSession(mCameraDevice);
 
         } catch (CameraAccessException e) {}
-        catch (RemoteException e) {}
     }
 
     private void closePreviewSession() {
@@ -528,7 +393,7 @@ public class CameraInstance {
     }
 
     private void setUpMediaRecorder() {
-        mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+      //  mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
         mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
         mMediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
         if (mNextVideoAbsolutePath == null || mNextVideoAbsolutePath.isEmpty()) {
@@ -539,7 +404,7 @@ public class CameraInstance {
         mMediaRecorder.setVideoFrameRate(30);
         mMediaRecorder.setVideoSize(mVideoSize.getWidth(), mVideoSize.getHeight());
         mMediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
-        mMediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+        //mMediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
         int rotation = mActivity.getWindowManager().getDefaultDisplay().getRotation();
         switch (mSensorOrientation) {
             case SENSOR_ORIENTATION_DEFAULT_DEGREES:
@@ -549,15 +414,71 @@ public class CameraInstance {
                 mMediaRecorder.setOrientationHint(INVERSE_ORIENTATIONS.get(rotation));
                 break;
         }
-        //mMediaRecorder.prepare();
+        try {
+            mMediaRecorder.prepare();
+        } catch (IOException e) {
+            Log.e("error",e.toString());
+        }
     }
     public void startRecordingVideo() {
-
             closePreviewSession();
             setUpMediaRecorder();
+            assert mSurface != null;
+            List<Surface> surfaces = new ArrayList<>();
+            try {
+                mPreviewBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
+                mPreviewBuilder.set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
+                        CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_OFF);
+                mPreviewBuilder.set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+                        CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF);
+                mPreviewBuilder.addTarget(mSurface);
+                Surface recorderSurface = mMediaRecorder.getSurface();
+                mPreviewBuilder.addTarget(recorderSurface);
+                surfaces.add(mSurface);
+                surfaces.add(recorderSurface);
+                // Start a capture session
+                // Once the session starts, we can update the UI and start recording
+                mCameraDevice.createCaptureSession(surfaces, new CameraCaptureSession.StateCallback() {
+
+                    @Override
+                    public void onConfigured(@NonNull CameraCaptureSession cameraCaptureSession) {
+                        mCameraCaptureSession = cameraCaptureSession;
+                        updatePreview();
+                        try {
+                            mMediaRecorder.start();
+                        } catch (Exception e) {
+                            Log.e("error",e.toString());
+                        }
+                    }
+
+                    @Override
+                    public void onConfigureFailed(@NonNull CameraCaptureSession cameraCaptureSession) {
+                        Activity activity = mActivity;
+                        if (null != activity) {
+                            Toast.makeText(activity, "Failed", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                }, mBackgroundHandler);
+
+            } catch (CameraAccessException e) {
+
+            }
             //surfaces.add(previewSurface);
+    }
 
+    public void stopRecordingVideo() {
+        // Stop recording
+        mMediaRecorder.stop();
+        mMediaRecorder.reset();
 
+        Activity activity = mActivity;
+        if (null != activity) {
+            Toast.makeText(activity, "Video saved: " + mNextVideoAbsolutePath,
+                    Toast.LENGTH_SHORT).show();
+            Log.d(TAG, "Video saved: " + mNextVideoAbsolutePath);
+        }
+        mNextVideoAbsolutePath = null;
+        startPreview();
     }
 
     private String getVideoFilePath(Context context) {
