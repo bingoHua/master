@@ -6,6 +6,8 @@ import android.app.Dialog;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.SurfaceTexture;
+import android.os.Handler;
+import android.os.Message;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.DialogFragment;
 import android.support.v4.app.Fragment;
@@ -32,6 +34,7 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_VIDEO_PERMISSIONS = 1;
     private static final String FRAGMENT_DIALOG = "dialog";
     private boolean flag=false;
+    private Handler mHandler;
     private static final String[] VIDEO_PERMISSIONS = {
             Manifest.permission.CAMERA,
             Manifest.permission.RECORD_AUDIO,
@@ -56,19 +59,30 @@ public class MainActivity extends AppCompatActivity {
         }
         mTextureView2 = (AutoFitTextureView) findViewById(R.id.textrue2);
         mTextureView = (AutoFitTextureView) findViewById(R.id.textrue);
-        mCameraInstance = new CameraInstance(this, mTextureView, "0", mHwCamera);
-        mCameraInstance2 = new CameraInstance(this, mTextureView2 , "2",mHwCamera);
+        mCameraInstance = new CameraInstance(this, mTextureView,mTextureView2, "0", mHwCamera);
+        //mCameraInstance2 = new CameraInstance(this,mTextureView ,mTextureView2 , "2",mHwCamera);
         mButton = (Button) findViewById(R.id.button);
+        mHandler = new Handler() {
+            @Override
+            public void handleMessage(Message msg) {
+                super.handleMessage(msg);
+                if (msg.what == 1) {
+                    //mCameraInstance.openCamera(mTextureView.getWidth(),mTextureView.getHeight());
+                } else {
+                    mCameraInstance.openCamera(mTextureView2.getWidth(),mTextureView2.getHeight());
+                }
+            }
+        };
         mButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (!mIsRecordering) {
                     mCameraInstance.startRecordingVideo();
-                    mCameraInstance2.startRecordingVideo();
+                    //mCameraInstance2.startRecordingVideo();
                     mIsRecordering = true;
                 } else {
                     mCameraInstance.stopRecordingVideo();
-                    mCameraInstance2.stopRecordingVideo();
+                   // mCameraInstance2.stopRecordingVideo();
                     mIsRecordering = false;
                 }
             }
@@ -106,14 +120,15 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
 
         mCameraInstance.startBackgroundThread();
-        mCameraInstance2.startBackgroundThread();
+        //mCameraInstance2.startBackgroundThread();
         if(mTextureView2.isAvailable()) {
-            mCameraInstance2.openCamera(mTextureView2.getWidth(),mTextureView2.getHeight());
+            //mCameraInstance2.openCamera(mTextureView2.getWidth(),mTextureView2.getHeight());
+            mHandler.sendMessage(Message.obtain(mHandler,2));
         } else {
             mTextureView2.setSurfaceTextureListener(mSurfaceTextureListener2);
         }
         if(mTextureView.isAvailable()) {
-            mCameraInstance.openCamera(mTextureView.getWidth(), mTextureView.getHeight());
+            mHandler.sendMessage(Message.obtain(mHandler,1));
         } else {
             mTextureView.setSurfaceTextureListener(mSurfaceTextureListener);
         }
@@ -132,7 +147,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int i, int i1) {
-            mCameraInstance.openCamera(i, i1);
+            mHandler.sendMessage(Message.obtain(mHandler,1));
         }
 
         @Override
@@ -156,7 +171,8 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int i, int i1) {
-            mCameraInstance2.openCamera(i, i1);
+            //mCameraInstance2.openCamera(i, i1);
+            mHandler.sendMessage(Message.obtain(mHandler,2));
         }
 
         @Override
